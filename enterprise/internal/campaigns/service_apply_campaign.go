@@ -234,17 +234,7 @@ func (r *changesetRewirer) Rewire(ctx context.Context) (err error) {
 				if err != nil {
 					return err
 				}
-
-				// We already have a changeset with the given repoID and
-				// externalID, so we can track it.
-				changeset.AddedToCampaign = true
-				changeset.CampaignIDs = append(changeset.CampaignIDs, r.campaign.ID)
-
-				// If it's errored we re-enqueue it.
-				if changeset.ReconcilerState == campaigns.ReconcilerStateErrored {
-					changeset.ResetQueued()
-				}
-				if err := r.tx.UpdateChangeset(ctx, changeset); err != nil {
+				if err := r.attachTrackingChangeset(ctx, changeset); err != nil {
 					return err
 				}
 			} else {
@@ -295,7 +285,7 @@ func (r *changesetRewirer) Rewire(ctx context.Context) (err error) {
 			// But only if it was created on the code host:
 			if c.Published() {
 				c.Closing = true
-				c.ReconcilerState = campaigns.ReconcilerStateQueued
+				c.ResetQueued()
 			} else {
 				// otherwise we simply delete it.
 				if err := r.tx.DeleteChangeset(ctx, c.ID); err != nil {
@@ -371,6 +361,19 @@ func (r *changesetRewirer) createTrackingChangeset(ctx context.Context, repo *ty
 	}
 
 	return newChangeset, r.tx.CreateChangeset(ctx, newChangeset)
+}
+
+func (r *changesetRewirer) attachTrackingChangeset(ctx context.Context, changeset *campaigns.Changeset) error {
+	// We already have a changeset with the given repoID and
+	// externalID, so we can track it.
+	changeset.AddedToCampaign = true
+	changeset.CampaignIDs = append(changeset.CampaignIDs, r.campaign.ID)
+
+	// If it's errored we re-enqueue it.
+	if changeset.ReconcilerState == campaigns.ReconcilerStateErrored {
+		changeset.ResetQueued()
+	}
+	return r.tx.UpdateChangeset(ctx, changeset)
 }
 
 // loadAssociations populates the chagnesets, newChangesetSpecs and
