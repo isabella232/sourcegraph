@@ -212,8 +212,8 @@ func (r *changesetRewirer) Rewire(ctx context.Context) (err error) {
 	attachedChangesets := map[int64]bool{}
 	for _, m := range changesetSpecMappings {
 		spec, ok := changesetSpecsByID[m.ChangesetSpecID]
-		// This should never happen.
 		if !ok {
+			// This should never happen.
 			return errors.New("spec not found")
 		}
 
@@ -231,6 +231,7 @@ func (r *changesetRewirer) Rewire(ctx context.Context) (err error) {
 		if m.ChangesetID != 0 {
 			changeset, ok = changesetsByID[m.ChangesetID]
 			if !ok {
+				// This should never happen.
 				return errors.New("changeset not found")
 			}
 			if spec.Spec.IsImportingExisting() {
