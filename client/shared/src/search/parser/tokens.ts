@@ -9,6 +9,8 @@ import {
     CapturingGroup,
     Assertion,
     Quantifier,
+    Alternative,
+    Pattern as RegexppPattern,
 } from 'regexpp/ast'
 
 export enum RegexpMetaKind {
@@ -17,6 +19,8 @@ export enum RegexpMetaKind {
     CharacterClass = 'CharacterClass', // like [a-z]
     Quantifier = 'Quantifier', // like +
     Assertion = 'Assertion', // like ^ or \b
+    EscapedCharacter = 'EscapedCharacter', // like \(
+    Alternative = 'Alternative', // like |
 }
 
 export interface RegexpMeta {
@@ -129,7 +133,40 @@ const mapRegexpMeta = (pattern: Pattern): DecoratedToken[] => {
                     })
                 }
             },
+            /*
+            onPatternEnter(node: RegexppPattern) {
+                console.log(`entered ${node.raw}, pos: ${node.start}, ${node.end}`)
+            },
+            */
+            onAlternativeEnter(node: Alternative) {
+                console.log(
+                    `entered ${node.raw}, parent ${node.parent.raw}, 
+                    absolute after pos: ${node.end} is ${pattern.value[offset + node.end]},
+                    start pos: ${node.start}, char ${node.raw[node.start]} parent ${node.parent.raw[node.start]}
+                    end pos: ${node.end}, char ${node.raw[node.end - 1]} after (parent) ${node.parent.raw[node.end]}
+                    parent start pos: ${node.parent.start}, char ${node.parent.raw[node.parent.start]}
+                    parent end pos: ${node.parent.end}, char ${node.parent.raw[node.parent.end - 1]}`
+                )
+                if (pattern.value[offset + node.end] && pattern.value[offset + node.end] === '|') {
+                    tokens.push({
+                        type: 'regexpMeta',
+                        range: { start: offset + node.end, end: offset + node.end + 1 },
+                        value: '|',
+                        kind: RegexpMetaKind.Alternative,
+                    })
+                }
+            },
             onCharacterEnter(node: Character) {
+                if (node.end - node.start > 1 && node.raw.startsWith('\\')) {
+                    // This is an escaped value like `\.`, `\u0065`, `\x65`.
+                    tokens.push({
+                        type: 'regexpMeta',
+                        range: { start: offset + node.start, end: offset + node.end },
+                        value: node.raw,
+                        kind: RegexpMetaKind.EscapedCharacter,
+                    })
+                    return
+                }
                 tokens.push({
                     type: 'pattern',
                     range: { start: offset + node.start, end: offset + node.end },
