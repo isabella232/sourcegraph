@@ -322,8 +322,6 @@ const filterKeyword = scanToken(new RegExp(`-?(${filterTypeKeysWithAliases.join(
 
 const filterDelimiter = character(':')
 
-const filterValue = oneOf<Quoted | Literal>(quoted('"'), quoted("'"), literal)
-
 const openingParen = scanToken(/\(/, (_input, range): OpeningParen => ({ type: 'openingParen', range }))
 
 const closingParen = scanToken(/\)/, (_input, range): ClosingParen => ({ type: 'closingParen', range }))
@@ -368,12 +366,22 @@ const filter: Scanner<Filter> = (input, start) => {
     if (scannedDelimiter.type === 'error') {
         return scannedDelimiter
     }
-    const scannedValue =
+    let scannedValue =
         input[scannedDelimiter.term.range.end] === undefined
             ? undefined
             : filterValue(input, scannedDelimiter.term.range.end)
     if (scannedValue && scannedValue.type === 'error') {
         return scannedValue
+    }
+    if (scannedValue?.term.type === 'pattern') {
+        scannedValue = {
+            type: 'success',
+            term: {
+                type: 'literal',
+                range: scannedValue.term.range,
+                value: scannedValue.term.value,
+            },
+        }
     }
     return {
         type: 'success',
@@ -499,6 +507,13 @@ export const scanBalancedPattern = (kind = PatternKind.Literal): Scanner<Pattern
 
     return createPattern(result.join(''), { start, end: adjustedStart }, kind)
 }
+
+const filterValue = oneOf<Quoted | Literal | Pattern>(
+    quoted('"'),
+    quoted("'"),
+    scanBalancedPattern(PatternKind.Literal),
+    literal
+)
 
 const scanPattern = (kind: PatternKind): Scanner<Pattern> => (input, start) => {
     const balancedPattern = scanBalancedPattern(kind)(input, start)
