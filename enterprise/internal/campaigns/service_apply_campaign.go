@@ -213,7 +213,7 @@ func (r *changesetRewirer) Rewire(ctx context.Context) (err error) {
 		if !specFound {
 			return errors.New("spec not found")
 		}
-		changeset, changesetFound := changesetsByID[m.ChangesetID]
+
 		repo, repoFound := accessibleReposByID[m.RepoID]
 		if !repoFound {
 			return &db.RepoNotFoundErr{ID: m.RepoID}
@@ -231,15 +231,17 @@ func (r *changesetRewirer) Rewire(ctx context.Context) (err error) {
 					return err
 				}
 
-				// If it's already attached to the campaign and errored, we re-enqueue it.
+				changeset.CampaignIDs = append(changeset.CampaignIDs, r.campaign.ID)
+
+				// If it's errored we re-enqueue it.
 				if changeset.ReconcilerState == campaigns.ReconcilerStateErrored {
 					if err := r.updateAndReenqueue(ctx, changeset); err != nil {
 						return err
 					}
-				}
-				changeset.CampaignIDs = append(changeset.CampaignIDs, r.campaign.ID)
+				} else {
 				if err := r.tx.UpdateChangeset(ctx, changeset); err != nil {
 					return err
+				}
 				}
 				attachedChangesets[changeset.ID] = true
 			} else {
@@ -257,6 +259,7 @@ func (r *changesetRewirer) Rewire(ctx context.Context) (err error) {
 				}
 				attachedChangesets[c.ID] = true
 			} else {
+				changeset, changesetFound := changesetsByID[m.ChangesetID]
 				if !changesetFound {
 					return errors.New("changeset not found")
 				}
