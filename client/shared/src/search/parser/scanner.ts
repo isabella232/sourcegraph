@@ -283,123 +283,6 @@ const scanToken = <T extends Term = Literal>(
     }
 }
 
-const whitespace = scanToken(/\s+/, (_input, range) => ({
-    type: 'whitespace',
-    range,
-}))
-
-const literal = scanToken(/[^\s)]+/)
-
-const keywordNot = scanToken(/(not|NOT)/, (input, { start, end }) => ({
-    type: 'keyword',
-    value: input.slice(start, end),
-    range: { start, end },
-    kind: KeywordKind.Not,
-}))
-
-const keywordAnd = scanToken(/(and|AND)/, (input, { start, end }) => ({
-    type: 'keyword',
-    value: input.slice(start, end),
-    range: { start, end },
-    kind: KeywordKind.And,
-}))
-
-const keywordOr = scanToken(/(or|OR)/, (input, { start, end }) => ({
-    type: 'keyword',
-    value: input.slice(start, end),
-    range: { start, end },
-    kind: KeywordKind.Or,
-}))
-
-const keyword = oneOf<Keyword>(keywordAnd, keywordOr, keywordNot)
-
-const comment = scanToken(
-    /\/\/.*/,
-    (input, { start, end }): Comment => ({ type: 'comment', value: input.slice(start, end), range: { start, end } })
-)
-
-const filterKeyword = scanToken(new RegExp(`-?(${filterTypeKeysWithAliases.join('|')})+(?=:)`, 'i'))
-
-const filterDelimiter = character(':')
-
-const filterValue = oneOf<Quoted | Literal>(quoted('"'), quoted("'"), literal)
-
-const openingParen = scanToken(/\(/, (_input, range): OpeningParen => ({ type: 'openingParen', range }))
-
-const closingParen = scanToken(/\)/, (_input, range): ClosingParen => ({ type: 'closingParen', range }))
-
-/**
- * Returns a {@link Scanner} that succeeds if a token scanned by `scanToken`,
- * followed by whitespace or EOF, is found in the search query.
- */
-const followedBy = (scanToken: Scanner<Token>, scanNext: Scanner<Token>): Scanner<Token[]> => (input, start) => {
-    const tokens: Token[] = []
-    const tokenResult = scanToken(input, start)
-    if (tokenResult.type === 'error') {
-        return tokenResult
-    }
-    tokens.push(tokenResult.term)
-    let { end } = tokenResult.term.range
-    if (input[end] !== undefined) {
-        const separatorResult = scanNext(input, end)
-        if (separatorResult.type === 'error') {
-            return separatorResult
-        }
-        tokens.push(separatorResult.term)
-        end = separatorResult.term.range.end
-    }
-    return {
-        type: 'success',
-        term: tokens,
-    }
-}
-
-/**
- * A {@link Scanner} that will attempt to scan {@link Filter} tokens
- * (consisting a of a filter type and a filter value, separated by a colon)
- * in a search query.
- */
-const filter: Scanner<Filter> = (input, start) => {
-    const scannedKeyword = filterKeyword(input, start)
-    if (scannedKeyword.type === 'error') {
-        return scannedKeyword
-    }
-    const scannedDelimiter = filterDelimiter(input, scannedKeyword.term.range.end)
-    if (scannedDelimiter.type === 'error') {
-        return scannedDelimiter
-    }
-    const scannedValue =
-        input[scannedDelimiter.term.range.end] === undefined
-            ? undefined
-            : filterValue(input, scannedDelimiter.term.range.end)
-    if (scannedValue && scannedValue.type === 'error') {
-        return scannedValue
-    }
-    return {
-        type: 'success',
-        term: {
-            type: 'filter',
-            range: { start, end: scannedValue ? scannedValue.term.range.end : scannedDelimiter.term.range.end },
-            filterType: scannedKeyword.term,
-            filterValue: scannedValue?.term,
-            negated: scannedKeyword.term.value.startsWith('-'),
-        },
-    }
-}
-
-const createPattern = (value: string, range: CharacterRange, kind: PatternKind): ScanSuccess<Pattern> => ({
-    type: 'success',
-    term: {
-        type: 'pattern',
-        range,
-        kind,
-        value,
-    },
-})
-
-const scanFilterOrKeyword = oneOf<Literal | Token[]>(filterKeyword, followedBy(keyword, whitespace))
-const keepScanning = (input: string, start: number): boolean => scanFilterOrKeyword(input, start).type !== 'success'
-
 /**
  * ScanBalancedLiteral attempts to scan balanced parentheses as literal strings. This
  * ensures that we interpret patterns containing parentheses _as patterns_ and not
@@ -506,6 +389,123 @@ export const scanBalancedLiteral: Scanner<Literal> = (input, start) => {
         },
     }
 }
+
+const whitespace = scanToken(/\s+/, (_input, range) => ({
+    type: 'whitespace',
+    range,
+}))
+
+const literal = scanToken(/[^\s)]+/)
+
+const keywordNot = scanToken(/(not|NOT)/, (input, { start, end }) => ({
+    type: 'keyword',
+    value: input.slice(start, end),
+    range: { start, end },
+    kind: KeywordKind.Not,
+}))
+
+const keywordAnd = scanToken(/(and|AND)/, (input, { start, end }) => ({
+    type: 'keyword',
+    value: input.slice(start, end),
+    range: { start, end },
+    kind: KeywordKind.And,
+}))
+
+const keywordOr = scanToken(/(or|OR)/, (input, { start, end }) => ({
+    type: 'keyword',
+    value: input.slice(start, end),
+    range: { start, end },
+    kind: KeywordKind.Or,
+}))
+
+const keyword = oneOf<Keyword>(keywordAnd, keywordOr, keywordNot)
+
+const comment = scanToken(
+    /\/\/.*/,
+    (input, { start, end }): Comment => ({ type: 'comment', value: input.slice(start, end), range: { start, end } })
+)
+
+const filterKeyword = scanToken(new RegExp(`-?(${filterTypeKeysWithAliases.join('|')})+(?=:)`, 'i'))
+
+const filterDelimiter = character(':')
+
+const filterValue = oneOf<Quoted | Literal>(quoted('"'), quoted("'"), scanBalancedLiteral, literal)
+
+const openingParen = scanToken(/\(/, (_input, range): OpeningParen => ({ type: 'openingParen', range }))
+
+const closingParen = scanToken(/\)/, (_input, range): ClosingParen => ({ type: 'closingParen', range }))
+
+/**
+ * Returns a {@link Scanner} that succeeds if a token scanned by `scanToken`,
+ * followed by whitespace or EOF, is found in the search query.
+ */
+const followedBy = (scanToken: Scanner<Token>, scanNext: Scanner<Token>): Scanner<Token[]> => (input, start) => {
+    const tokens: Token[] = []
+    const tokenResult = scanToken(input, start)
+    if (tokenResult.type === 'error') {
+        return tokenResult
+    }
+    tokens.push(tokenResult.term)
+    let { end } = tokenResult.term.range
+    if (input[end] !== undefined) {
+        const separatorResult = scanNext(input, end)
+        if (separatorResult.type === 'error') {
+            return separatorResult
+        }
+        tokens.push(separatorResult.term)
+        end = separatorResult.term.range.end
+    }
+    return {
+        type: 'success',
+        term: tokens,
+    }
+}
+
+/**
+ * A {@link Scanner} that will attempt to scan {@link Filter} tokens
+ * (consisting a of a filter type and a filter value, separated by a colon)
+ * in a search query.
+ */
+const filter: Scanner<Filter> = (input, start) => {
+    const scannedKeyword = filterKeyword(input, start)
+    if (scannedKeyword.type === 'error') {
+        return scannedKeyword
+    }
+    const scannedDelimiter = filterDelimiter(input, scannedKeyword.term.range.end)
+    if (scannedDelimiter.type === 'error') {
+        return scannedDelimiter
+    }
+    const scannedValue =
+        input[scannedDelimiter.term.range.end] === undefined
+            ? undefined
+            : filterValue(input, scannedDelimiter.term.range.end)
+    if (scannedValue && scannedValue.type === 'error') {
+        return scannedValue
+    }
+    return {
+        type: 'success',
+        term: {
+            type: 'filter',
+            range: { start, end: scannedValue ? scannedValue.term.range.end : scannedDelimiter.term.range.end },
+            filterType: scannedKeyword.term,
+            filterValue: scannedValue?.term,
+            negated: scannedKeyword.term.value.startsWith('-'),
+        },
+    }
+}
+
+const createPattern = (value: string, range: CharacterRange, kind: PatternKind): ScanSuccess<Pattern> => ({
+    type: 'success',
+    term: {
+        type: 'pattern',
+        range,
+        kind,
+        value,
+    },
+})
+
+const scanFilterOrKeyword = oneOf<Literal | Token[]>(filterKeyword, followedBy(keyword, whitespace))
+const keepScanning = (input: string, start: number): boolean => scanFilterOrKeyword(input, start).type !== 'success'
 
 /**
  * A helper function that maps a {@link Literal} scanner result to a {@link Pattern} scanner.
