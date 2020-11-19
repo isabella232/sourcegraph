@@ -52,6 +52,7 @@ const (
 	ReconcilerStateQueued     ReconcilerState = "QUEUED"
 	ReconcilerStateProcessing ReconcilerState = "PROCESSING"
 	ReconcilerStateErrored    ReconcilerState = "ERRORED"
+	ReconcilerStateFailed     ReconcilerState = "FAILED"
 	ReconcilerStateCompleted  ReconcilerState = "COMPLETED"
 )
 
@@ -61,6 +62,7 @@ func (s ReconcilerState) Valid() bool {
 	case ReconcilerStateQueued,
 		ReconcilerStateProcessing,
 		ReconcilerStateErrored,
+		ReconcilerStateFailed,
 		ReconcilerStateCompleted:
 		return true
 	default:
