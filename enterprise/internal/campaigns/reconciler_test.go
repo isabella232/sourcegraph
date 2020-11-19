@@ -1066,7 +1066,7 @@ func TestReconcilerProcess_PublishedChangesetDuplicateBranch(t *testing.T) {
 
 	// We expect a non-retryable error to be returned.
 	if !errcode.IsNonRetryable(err) {
-		t.Fatalf("error is not non-retryabe. have=%s", err)
+		t.Fatalf("error is not non-retryable. have=%s", err)
 	}
 }
 
